@@ -464,7 +464,7 @@ static char *printAddress(SFLAddress *address, char *buf);
 void *my_calloc(size_t bytes) {
   void *mem = calloc(1, bytes);
   if(mem == NULL) {
-    fprintf(ERROUT, "calloc(%"PRIu64") failed: %s\n", (uint64_t)bytes, strerror(errno));
+    fprintf(ERROUT, "calloc(%" PRIu64 ") failed: %s\n", (uint64_t)bytes, strerror(errno));
     exit(-1);
   }
   return mem;
@@ -488,7 +488,7 @@ void sf_log(SFSample *sample, char *fmt, ...)
   if(sfConfig.outputFormat == SFLFMT_SCRIPT) {
     /* scripts like to have all the context on every line */
     char agentIP[51], tag1[51], tag2[51], nowstr[200];
-    time_t now = sample->pcapTimestamp ?: sample->readTimestamp;
+    time_t now = sample->pcapTimestamp ? sample->pcapTimestamp : sample->readTimestamp;
     strftime(nowstr, 200, "%d/%b/%Y:%H:%M:%S", localtime(&now));
     printf("%s %s %u %u %u:%u %s %s ",
 	   nowstr,
@@ -708,7 +708,7 @@ static void writeCountersLine(SFSample *sample)
   if(printf("CNTR,%s,", printAddress(&sample->agent_addr, agentIP)) < 0) {
     exit(-45);
   }
-  if(printf("%u,%u,%"PRIu64",%u,%u,%"PRIu64",%u,%u,%u,%u,%u,%u,%"PRIu64",%u,%u,%u,%u,%u,%u\n",
+  if(printf("%u,%u,%" PRIu64 ",%u,%u,%" PRIu64 ",%u,%u,%u,%u,%u,%u,%" PRIu64 ",%u,%u,%u,%u,%u,%u\n",
 	    sample->ifCounters.ifIndex,
 	    sample->ifCounters.ifType,
 	    sample->ifCounters.ifSpeed,
@@ -1605,7 +1605,7 @@ static uint32_t sf_log_next32(SFSample *sample, char *fieldName) {
 
 static uint64_t sf_log_next64(SFSample *sample, char *fieldName) {
   uint64_t val64 = getData64(sample);
-  sf_log(sample,"%s %"PRIu64"\n", fieldName, val64);
+  sf_log(sample,"%s %" PRIu64 "\n", fieldName, val64);
   return val64;
 }
 
@@ -2401,8 +2401,10 @@ static void readFlowSample_memcache(SFSample *sample)
 */
 
 /* absorb compiler warning about strftime printing */
+#ifndef _MSC_VER
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat"
+#endif // !_MSC_VER
 
 static void readFlowSample_http(SFSample *sample, uint32_t tag)
 {
@@ -2457,7 +2459,7 @@ static void readFlowSample_http(SFSample *sample, uint32_t tag)
     char nowstr[200];
     strftime(nowstr, 200, "%d/%b/%Y:%H:%M:%S %z", localtime(&now)); /* there seems to be no simple portable equivalent to %z */
     /* should really be: snprintf(sfCLF.http_log, SFLFMT_CLF_MAX_LINE,...) but snprintf() is not always available */
-    sprintf(sfCLF.http_log, "- %s [%s] \"%s %s HTTP/%u.%u\" %u %"PRIu64" \"%s\" \"%s\"",
+    sprintf(sfCLF.http_log, "- %s [%s] \"%s %s HTTP/%u.%u\" %u %" PRIu64 " \"%s\" \"%s\"",
 	     authuser[0] ? authuser : "-",
 	     nowstr,
 	     SFHTTP_method_names[method],
@@ -2471,8 +2473,9 @@ static void readFlowSample_http(SFSample *sample, uint32_t tag)
     sfCLF.valid = YES;
   }
 }
-
+#ifndef _MSC_VER
 #pragma GCC diagnostic pop
+#endif // !_MSC_VER
 
 /*_________________----------------------------__________________
   _________________  readFlowSample_APP        __________________
@@ -3958,7 +3961,7 @@ static void readRTMetric(SFSample *sample)
 	break;
       case 2:
 	mvali64 = getData64(sample);
-	sf_log(sample, "rtmetric %s = (counter64) %"PRIu64"\n", mname, mvali64);
+	sf_log(sample, "rtmetric %s = (counter64) %" PRIu64 "\n", mname, mvali64);
 	break;
       case 3:
 	mvali32 = getData32(sample);
@@ -3966,7 +3969,7 @@ static void readRTMetric(SFSample *sample)
 	break;
       case 4:
 	mvali64 = getData64(sample);
-	sf_log(sample, "rtmetric %s = (gauge64) %"PRIu64"\n", mname, mvali64);
+	sf_log(sample, "rtmetric %s = (gauge64) %" PRIu64 "\n", mname, mvali64);
 	break;
       case 5:
 	mvalfloat = getFloat(sample);
@@ -4054,7 +4057,7 @@ static void readRTFlow(SFSample *sample)
 	break;
       case 5:
 	fvali64 = getData64(sample);
-	sf_log(sample, "rtflow %s = (int64) %"PRIu64"\n", fname, fvali64);
+	sf_log(sample, "rtflow %s = (int64) %" PRIu64 "\n", fname, fvali64);
 	break;
       case 6:
 	fvalfloat = getFloat(sample);
@@ -4834,13 +4837,14 @@ static void process_command_line(int argc, char *argv[])
     case 'g': sfConfig.outputFormat = SFLFMT_SCRIPT; break;
     case 'r':
         len_str = strlen(argv[arg]); /* argv[arg] already null-terminated */
-        sfConfig.readPcapFileName = my_calloc(len_str+1);
+        sfConfig.readPcapFileName = (char *)my_calloc(len_str+1);
 	memcpy(sfConfig.readPcapFileName, argv[arg++], len_str);
         break;
     case 'x': sfConfig.removeContent = YES; break;
     case 'z': sfConfig.tcpdumpHdrPad = atoi(argv[arg++]); break;
     case 'c':
       {
+		  
 	struct hostent *ent = gethostbyname(argv[arg++]);
 	if(ent == NULL) {
 	  fprintf(ERROUT, "netflow collector hostname lookup failed\n");
